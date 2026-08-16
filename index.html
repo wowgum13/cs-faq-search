@@ -14,6 +14,15 @@ body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;c
 .head p{margin:5px 0 0;font-size:12px;color:#c7c9d9}
 .head .gold{color:var(--gold);font-weight:700}
 .hdr-stat{font-size:11.5px;color:#c7c9d9;text-align:right;white-space:nowrap}
+.hdr-stat .agent-tag{display:block;margin-top:3px;font-size:11px}
+.hdr-stat .agent-tag button{background:none;border:none;color:var(--gold);font-size:11px;cursor:pointer;padding:0;margin-left:6px;text-decoration:underline;font-family:inherit}
+.modal-overlay{position:fixed;inset:0;background:rgba(26,26,46,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-overlay.show{display:flex}
+.modal-box{background:#fff;border-radius:14px;padding:26px;max-width:360px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.modal-box h2{margin:0 0 6px;font-size:16px;color:var(--navy)}
+.modal-box p{margin:0 0 14px;font-size:12.5px;color:var(--gray);line-height:1.6}
+.modal-box .srch-big{margin-bottom:12px}
+.modal-box .btn-navy{width:100%;padding:12px;border:none;border-radius:9px;background:var(--navy);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
 .info-note{background:#fdf3e7;border-left:3px solid var(--gold);border-radius:6px;padding:10px 12px;font-size:12.5px;color:#7a5a1e;margin-bottom:14px;line-height:1.6}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
 .srch-wrap{position:relative}
@@ -58,7 +67,19 @@ footer a{color:var(--gray2)}
       <h1>📋 상담원 CS FAQ 검색</h1>
       <p><span class="gold">실시간 키워드 검색</span> · 서버·AI 호출 없이 브라우저에서 즉시 필터링 · 구글 시트와 자동 동기화</p>
     </div>
-    <div class="hdr-stat" id="hdrStat">불러오는 중...</div>
+    <div class="hdr-stat">
+      <span id="hdrStat">불러오는 중...</span>
+      <span class="agent-tag" id="agentTag"></span>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="nameModal">
+    <div class="modal-box">
+      <h2>👤 상담원 이름을 입력해주세요</h2>
+      <p>검색 로그 추적을 위해 최초 1회만 입력합니다. 이 브라우저에 저장되며, 검색 결과가 없을 때만 이름과 검색어가 함께 기록됩니다.</p>
+      <input id="nameInput" class="srch-big" placeholder="이름 (예: 홍길동)" autocomplete="off">
+      <button class="btn-navy" id="nameSaveBtn">시작하기</button>
+    </div>
   </div>
 
   <div class="info-note">⚠️ 이 데이터는 <b>상담원 내부 업무보조용</b>입니다. 배차운임 등 고객에게 노출되면 안 되는 내용이 포함되어 있으니 고객 응대 화면 공유 시 유의하세요.</div>
@@ -79,20 +100,57 @@ footer a{color:var(--gray2)}
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=0&single=true&output=csv';
 const MISS_LOG_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSci5VjyBVYYvIEWjgJggnGvwMhG3ziOlYRQpR4xLxr4UaUSEA/formResponse';
-const MISS_LOG_FIELD = 'entry.1846426968';
+const MISS_LOG_QUERY_FIELD = 'entry.1846426968';
+const MISS_LOG_NAME_FIELD = 'entry.961246956';
 const MISS_LOG_DELAY = 1000;
+const AGENT_KEY = 'cs_faq_agent_name';
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 let DATA = [];
 let activeCategory = '전체';
+let agentName = localStorage.getItem(AGENT_KEY) || '';
 const loggedMisses = new Set();
 let missLogTimer = null;
+
+function renderAgentTag() {
+  const tag = document.getElementById('agentTag');
+  tag.innerHTML = agentName
+    ? `👤 ${esc(agentName)}<button id="changeNameBtn">이름 변경</button>`
+    : '';
+  const btn = document.getElementById('changeNameBtn');
+  if (btn) btn.addEventListener('click', () => openNameModal());
+}
+
+function openNameModal() {
+  const modal = document.getElementById('nameModal');
+  const input = document.getElementById('nameInput');
+  input.value = agentName;
+  modal.classList.add('show');
+  input.focus();
+}
+
+function saveAgentName() {
+  const v = document.getElementById('nameInput').value.trim();
+  if (!v) { document.getElementById('nameInput').focus(); return; }
+  agentName = v;
+  localStorage.setItem(AGENT_KEY, v);
+  document.getElementById('nameModal').classList.remove('show');
+  renderAgentTag();
+}
+
+document.getElementById('nameSaveBtn').addEventListener('click', saveAgentName);
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveAgentName(); });
+if (!agentName) openNameModal();
+renderAgentTag();
 
 function logMiss(query, category) {
   const key = (category === '전체' ? '' : category + '|') + query.toLowerCase();
   if (loggedMisses.has(key)) return;
   loggedMisses.add(key);
   const fd = new FormData();
-  fd.append(MISS_LOG_FIELD, (category === '전체' ? '' : `[${category}] `) + query);
+  fd.append(MISS_LOG_QUERY_FIELD, (category === '전체' ? '' : `[${category}] `) + query);
+  fd.append(MISS_LOG_NAME_FIELD, agentName || '(미입력)');
   fetch(MISS_LOG_URL, { method: 'POST', mode: 'no-cors', body: fd }).catch(() => {});
 }
 
@@ -100,8 +158,6 @@ function scheduleMissLog(query, category) {
   clearTimeout(missLogTimer);
   missLogTimer = setTimeout(() => logMiss(query, category), MISS_LOG_DELAY);
 }
-
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 function parseCSV(text) {
   const rows = [];
