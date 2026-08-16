@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상담원 CS FAQ 검색</title>
+<style>
+:root{--navy:#1a1a2e;--navy2:#27338a;--gold:#c9a24b;--ink:#1a1a2e;--gray:#6b7280;--gray2:#9ca3af;--line:#eef0f4;--red:#dc2626;--green:#16a34a;--amber:#d97706;}
+*{box-sizing:border-box}
+body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;color:var(--ink);background:#f6f7f9}
+.wrap{max-width:920px;margin:0 auto;padding:20px}
+.head{background:var(--navy);color:#fff;border-radius:14px;padding:16px 22px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.head h1{margin:0;font-size:18px}
+.head p{margin:5px 0 0;font-size:12px;color:#c7c9d9}
+.head .gold{color:var(--gold);font-weight:700}
+.hdr-stat{font-size:11.5px;color:#c7c9d9;text-align:right;white-space:nowrap}
+.info-note{background:#fdf3e7;border-left:3px solid var(--gold);border-radius:6px;padding:10px 12px;font-size:12.5px;color:#7a5a1e;margin-bottom:14px;line-height:1.6}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+.srch-wrap{position:relative}
+.srch-big{width:100%;padding:14px 44px 14px 16px;border:1.5px solid var(--navy);border-radius:10px;font-size:15px;font-family:inherit;outline:none;color:var(--ink)}
+.srch-big:focus{border-color:var(--navy2);box-shadow:0 0 0 3px rgba(39,51,138,.12)}
+.srch-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gray2);font-size:18px;cursor:pointer;padding:4px 6px;display:none;line-height:1}
+.srch-clear.show{display:block}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.chip{padding:7px 13px;background:#f6f7f9;border:1px solid var(--line);border-radius:20px;font-size:12.5px;font-weight:600;color:var(--gray);cursor:pointer;user-select:none;white-space:nowrap}
+.chip:hover{border-color:var(--navy2);color:var(--navy2)}
+.chip.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chip .n{opacity:.7;font-weight:500;margin-left:2px}
+.result-meta{font-size:12px;color:var(--gray);margin:12px 2px 0}
+.result-meta b{color:var(--navy2)}
+.list{display:flex;flex-direction:column;gap:8px}
+.faq-item{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.faq-item.open{border-color:var(--navy2)}
+.faq-q{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none}
+.faq-q:hover{background:#fafbfc}
+.cat-tag{flex:none;font-size:10.5px;font-weight:700;color:var(--navy2);background:#eef0fb;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.q-text{flex:1;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.5}
+.q-text mark{background:var(--gold);color:var(--navy);border-radius:3px;padding:0 2px}
+.chevron{flex:none;color:var(--gray2);font-size:12px;transition:transform .15s}
+.faq-item.open .chevron{transform:rotate(180deg)}
+.faq-a{display:none;padding:0 16px 16px 16px;font-size:13px;line-height:1.7;color:#374151;white-space:pre-wrap;border-top:1px solid var(--line);margin-top:0;padding-top:12px}
+.faq-a mark{background:var(--gold);color:var(--navy);border-radius:3px;padding:0 2px}
+.faq-item.open .faq-a{display:block}
+.empty{text-align:center;color:var(--gray2);padding:50px 20px;font-size:13px}
+.empty .big{font-size:28px;margin-bottom:8px}
+.loading{text-align:center;color:var(--gray);padding:50px 20px;font-size:13px}
+.err{text-align:center;color:var(--red);padding:30px 20px;font-size:13px;line-height:1.7}
+.err button{margin-top:10px;padding:8px 16px;border:1.5px solid var(--red);background:#fff;color:var(--red);border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+footer{text-align:center;padding:24px;color:var(--gray2);font-size:12px}
+footer a{color:var(--gray2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>📋 상담원 CS FAQ 검색</h1>
+      <p><span class="gold">실시간 키워드 검색</span> · 서버·AI 호출 없이 브라우저에서 즉시 필터링 · 구글 시트와 자동 동기화</p>
+    </div>
+    <div class="hdr-stat" id="hdrStat">불러오는 중...</div>
+  </div>
+
+  <div class="info-note">⚠️ 이 데이터는 <b>상담원 내부 업무보조용</b>입니다. 배차운임 등 고객에게 노출되면 안 되는 내용이 포함되어 있으니 고객 응대 화면 공유 시 유의하세요.</div>
+
+  <div class="card">
+    <div class="srch-wrap">
+      <input id="searchInput" class="srch-big" placeholder="🔍 키워드로 검색 (예: 상담, 배차, 로그인, 비밀번호)" autocomplete="off" disabled>
+      <button class="srch-clear" id="clearBtn" title="지우기">✕</button>
+    </div>
+    <div class="chips" id="categoryChips"></div>
+    <div class="result-meta" id="resultMeta"></div>
+  </div>
+
+  <div id="resultsList" class="list"></div>
+</div>
+<footer>상담원 CS FAQ 검색 · 브라우저 내 처리(외부 전송 없음) · <a href="#" id="refreshLink">데이터 새로고침</a></footer>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=0&single=true&output=csv';
+
+let DATA = [];
+let activeCategory = '전체';
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r[0] && r[0].trim() !== ''));
+}
+
+function highlight(text, tokens) {
+  let out = esc(text);
+  tokens.forEach(t => {
+    if (!t) return;
+    const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    out = out.replace(re, '<mark>$1</mark>');
+  });
+  return out;
+}
+
+function buildChips() {
+  const counts = {};
+  DATA.forEach(d => { counts[d.category] = (counts[d.category] || 0) + 1; });
+  const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const box = document.getElementById('categoryChips');
+  const chipHtml = c => `<div class="chip${activeCategory === c ? ' active' : ''}" data-cat="${esc(c)}">${esc(c)}<span class="n">${c === '전체' ? DATA.length : counts[c]}</span></div>`;
+  box.innerHTML = chipHtml('전체') + cats.map(chipHtml).join('');
+  box.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => {
+    activeCategory = el.dataset.cat;
+    render();
+  }));
+}
+
+function render() {
+  const q = document.getElementById('searchInput').value.trim();
+  const tokens = q.split(/\s+/).filter(Boolean).map(t => t.toLowerCase());
+  document.getElementById('clearBtn').classList.toggle('show', q.length > 0);
+
+  let results = DATA.filter(d => activeCategory === '전체' || d.category === activeCategory);
+  if (tokens.length) {
+    results = results.filter(d => {
+      const hay = (d.category + ' ' + d.question + ' ' + d.answer).toLowerCase();
+      return tokens.every(t => hay.includes(t));
+    }).map(d => {
+      const qHit = tokens.every(t => d.question.toLowerCase().includes(t));
+      return { ...d, score: qHit ? 2 : 1 };
+    }).sort((a, b) => b.score - a.score || a._i - b._i);
+  }
+
+  document.querySelectorAll('.chip').forEach(el => el.classList.toggle('active', el.dataset.cat === activeCategory));
+
+  const meta = document.getElementById('resultMeta');
+  meta.innerHTML = q || activeCategory !== '전체'
+    ? `전체 ${DATA.length}개 중 <b>${results.length}개</b> 일치`
+    : `전체 <b>${DATA.length}개</b> 항목`;
+
+  const list = document.getElementById('resultsList');
+  if (!results.length) {
+    list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.</div>`;
+    return;
+  }
+  list.innerHTML = results.map(d => `
+    <div class="faq-item" data-id="${d._i}">
+      <div class="faq-q">
+        <span class="cat-tag">${esc(d.category)}</span>
+        <span class="q-text">${highlight(d.question, tokens)}</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="faq-a">${highlight(d.answer, tokens)}</div>
+    </div>`).join('');
+  list.querySelectorAll('.faq-q').forEach(el => el.addEventListener('click', () => {
+    el.closest('.faq-item').classList.toggle('open');
+  }));
+}
+
+async function loadData(isRetry) {
+  const stat = document.getElementById('hdrStat');
+  const list = document.getElementById('resultsList');
+  const input = document.getElementById('searchInput');
+  stat.textContent = isRetry ? '다시 불러오는 중...' : '불러오는 중...';
+  list.innerHTML = `<div class="loading">CS FAQ 데이터를 불러오는 중입니다...</div>`;
+  input.disabled = true;
+  try {
+    const res = await fetch(CSV_URL + '&_ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length) throw new Error('빈 데이터');
+    const [header, ...body] = rows;
+    const ci = header.findIndex(h => h.trim() === '카테고리');
+    const qi = header.findIndex(h => h.trim() === '질문');
+    const ai = header.findIndex(h => h.trim() === '답변');
+    if (ci < 0 || qi < 0 || ai < 0) throw new Error('시트 형식(카테고리/질문/답변 열)을 확인해주세요');
+    DATA = body
+      .filter(r => (r[qi] || '').trim())
+      .map((r, i) => ({ category: (r[ci] || '').trim(), question: (r[qi] || '').trim(), answer: (r[ai] || '').trim(), _i: i }));
+    const now = new Date();
+    const p = n => String(n).padStart(2, '0');
+    stat.textContent = `총 ${DATA.length}개 항목 · ${p(now.getMonth() + 1)}/${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())} 동기화`;
+    input.disabled = false;
+    buildChips();
+    render();
+    input.focus();
+  } catch (e) {
+    stat.textContent = '동기화 실패';
+    list.innerHTML = `<div class="err">데이터를 불러오지 못했습니다.<br>${esc(e.message)}<br><button id="retryBtn">다시 시도</button></div>`;
+    document.getElementById('retryBtn').addEventListener('click', () => loadData(true));
+  }
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  render();
+  input.focus();
+});
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.target.value = ''; render(); }
+});
+document.getElementById('refreshLink').addEventListener('click', e => { e.preventDefault(); loadData(true); });
+
+loadData(false);
+</script>
+</body>
+</html>
