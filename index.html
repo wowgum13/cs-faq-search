@@ -43,6 +43,7 @@ body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;c
 .faq-item.open .faq-a{display:block}
 .empty{text-align:center;color:var(--gray2);padding:50px 20px;font-size:13px}
 .empty .big{font-size:28px;margin-bottom:8px}
+.empty .miss-note{display:block;margin-top:10px;font-size:11px;color:var(--gray2)}
 .loading{text-align:center;color:var(--gray);padding:50px 20px;font-size:13px}
 .err{text-align:center;color:var(--red);padding:30px 20px;font-size:13px;line-height:1.7}
 .err button{margin-top:10px;padding:8px 16px;border:1.5px solid var(--red);background:#fff;color:var(--red);border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -77,9 +78,28 @@ footer a{color:var(--gray2)}
 
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=0&single=true&output=csv';
+const MISS_LOG_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSci5VjyBVYYvIEWjgJggnGvwMhG3ziOlYRQpR4xLxr4UaUSEA/formResponse';
+const MISS_LOG_FIELD = 'entry.1846426968';
+const MISS_LOG_DELAY = 1000;
 
 let DATA = [];
 let activeCategory = '전체';
+const loggedMisses = new Set();
+let missLogTimer = null;
+
+function logMiss(query, category) {
+  const key = (category === '전체' ? '' : category + '|') + query.toLowerCase();
+  if (loggedMisses.has(key)) return;
+  loggedMisses.add(key);
+  const fd = new FormData();
+  fd.append(MISS_LOG_FIELD, (category === '전체' ? '' : `[${category}] `) + query);
+  fetch(MISS_LOG_URL, { method: 'POST', mode: 'no-cors', body: fd }).catch(() => {});
+}
+
+function scheduleMissLog(query, category) {
+  clearTimeout(missLogTimer);
+  missLogTimer = setTimeout(() => logMiss(query, category), MISS_LOG_DELAY);
+}
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
@@ -154,9 +174,16 @@ function render() {
 
   const list = document.getElementById('resultsList');
   if (!results.length) {
-    list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.</div>`;
+    if (q) {
+      scheduleMissLog(q, activeCategory);
+      list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.<br><span class="miss-note">이 검색어는 FAQ 보완을 위해 자동 기록됩니다.</span></div>`;
+    } else {
+      clearTimeout(missLogTimer);
+      list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.</div>`;
+    }
     return;
   }
+  clearTimeout(missLogTimer);
   list.innerHTML = results.map(d => `
     <div class="faq-item" data-id="${d._i}">
       <div class="faq-q">
