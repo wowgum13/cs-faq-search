@@ -99,9 +99,7 @@ footer a{color:var(--gray2)}
 
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=0&single=true&output=csv';
-const MISS_LOG_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSci5VjyBVYYvIEWjgJggnGvwMhG3ziOlYRQpR4xLxr4UaUSEA/formResponse';
-const MISS_LOG_QUERY_FIELD = 'entry.1846426968';
-const MISS_LOG_NAME_FIELD = 'entry.961246956';
+const MISS_LOG_URL = 'https://script.google.com/macros/s/AKfycbwvsW8_KZQhYGAi1_y5_jJ8aZQRdCXiHNu9oXEZzMJd8XwvcUKlM4CLNvH1_Ymi035R5A/exec';
 const MISS_LOG_DELAY = 1000;
 const AGENT_KEY = 'cs_faq_agent_name';
 
@@ -148,10 +146,11 @@ function logMiss(query, category) {
   const key = (category === '전체' ? '' : category + '|') + query.toLowerCase();
   if (loggedMisses.has(key)) return;
   loggedMisses.add(key);
-  const fd = new FormData();
-  fd.append(MISS_LOG_QUERY_FIELD, (category === '전체' ? '' : `[${category}] `) + query);
-  fd.append(MISS_LOG_NAME_FIELD, agentName || '(미입력)');
-  fetch(MISS_LOG_URL, { method: 'POST', mode: 'no-cors', body: fd }).catch(() => {});
+  const payload = {
+    query: (category === '전체' ? '' : `[${category}] `) + query,
+    name: agentName || '(미입력)'
+  };
+  fetch(MISS_LOG_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payload) }).catch(() => {});
 }
 
 function scheduleMissLog(query, category) {
