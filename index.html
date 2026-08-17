@@ -45,11 +45,18 @@ body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;c
 .cat-tag{flex:none;font-size:10.5px;font-weight:700;color:var(--navy2);background:#eef0fb;padding:3px 8px;border-radius:6px;white-space:nowrap}
 .q-text{flex:1;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.5}
 .q-text mark{background:var(--gold);color:var(--navy);border-radius:3px;padding:0 2px}
+.star-btn{flex:none;background:none;border:none;font-size:18px;line-height:1;cursor:pointer;padding:8px;margin:-8px;color:var(--gray2);font-family:inherit}
+.star-btn.active{color:var(--gold)}
 .chevron{flex:none;color:var(--gray2);font-size:12px;transition:transform .15s}
 .faq-item.open .chevron{transform:rotate(180deg)}
-.faq-a{display:none;padding:0 16px 16px 16px;font-size:13px;line-height:1.7;color:#374151;white-space:pre-wrap;border-top:1px solid var(--line);margin-top:0;padding-top:12px}
+.faq-a{display:none;padding:0 16px 16px 16px;font-size:13px;line-height:1.7;color:#374151;border-top:1px solid var(--line);margin-top:0;padding-top:12px}
 .faq-a mark{background:var(--gold);color:var(--navy);border-radius:3px;padding:0 2px}
 .faq-item.open .faq-a{display:block}
+.faq-a-tools{display:flex;justify-content:flex-end;margin-bottom:6px}
+.copy-btn{background:#fff;border:1px solid var(--line);border-radius:6px;padding:7px 12px;font-size:11.5px;color:var(--gray);cursor:pointer;font-family:inherit;white-space:nowrap}
+.copy-btn:hover{border-color:var(--navy2);color:var(--navy2)}
+.copy-btn.copied{color:var(--green);border-color:var(--green);background:#f0fdf4}
+.faq-a-text{white-space:pre-wrap}
 .empty{text-align:center;color:var(--gray2);padding:50px 20px;font-size:13px}
 .empty .big{font-size:28px;margin-bottom:8px}
 .empty .miss-note{display:block;margin-top:10px;font-size:11px;color:var(--gray2)}
@@ -105,11 +112,35 @@ const AGENT_KEY = 'cs_faq_agent_name';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
+const FAV_KEY = 'cs_faq_favorites';
+const RECENT_KEY = 'cs_faq_recent';
+const RECENT_MAX = 10;
+
 let DATA = [];
 let activeCategory = '전체';
 let agentName = localStorage.getItem(AGENT_KEY) || '';
+let favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
+let recentList = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
 const loggedMisses = new Set();
 let missLogTimer = null;
+
+function saveFavorites() { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); }
+function toggleFavorite(q) {
+  if (favorites.has(q)) favorites.delete(q); else favorites.add(q);
+  saveFavorites();
+}
+function addRecent(q) {
+  recentList = recentList.filter(x => x !== q);
+  recentList.unshift(q);
+  if (recentList.length > RECENT_MAX) recentList = recentList.slice(0, RECENT_MAX);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recentList));
+}
+function updateSpecialChipCounts() {
+  const favChip = document.querySelector('.chip[data-cat="__FAV__"] .n');
+  if (favChip) favChip.textContent = favorites.size;
+  const recChip = document.querySelector('.chip[data-cat="__RECENT__"] .n');
+  if (recChip) recChip.textContent = recentList.length;
+}
 
 function renderAgentTag() {
   const tag = document.getElementById('agentTag');
@@ -196,8 +227,13 @@ function buildChips() {
   DATA.forEach(d => { counts[d.category] = (counts[d.category] || 0) + 1; });
   const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const box = document.getElementById('categoryChips');
-  const chipHtml = c => `<div class="chip${activeCategory === c ? ' active' : ''}" data-cat="${esc(c)}">${esc(c)}<span class="n">${c === '전체' ? DATA.length : counts[c]}</span></div>`;
-  box.innerHTML = chipHtml('전체') + cats.map(chipHtml).join('');
+  const chipHtml = (c, label, n) => `<div class="chip${activeCategory === c ? ' active' : ''}" data-cat="${esc(c)}">${label}<span class="n">${n}</span></div>`;
+  let html = '';
+  html += chipHtml('__FAV__', '⭐ 즐겨찾기', favorites.size);
+  html += chipHtml('__RECENT__', '🕐 최근 본', recentList.length);
+  html += chipHtml('전체', '전체', DATA.length);
+  html += cats.map(c => chipHtml(c, esc(c), counts[c])).join('');
+  box.innerHTML = html;
   box.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => {
     activeCategory = el.dataset.cat;
     render();
@@ -209,7 +245,14 @@ function render() {
   const tokens = q.split(/\s+/).filter(Boolean).map(t => t.toLowerCase());
   document.getElementById('clearBtn').classList.toggle('show', q.length > 0);
 
-  let results = DATA.filter(d => activeCategory === '전체' || d.category === activeCategory);
+  let results;
+  if (activeCategory === '__FAV__') {
+    results = DATA.filter(d => favorites.has(d.question));
+  } else if (activeCategory === '__RECENT__') {
+    results = recentList.map(q => DATA.find(d => d.question === q)).filter(Boolean);
+  } else {
+    results = DATA.filter(d => activeCategory === '전체' || d.category === activeCategory);
+  }
   if (tokens.length) {
     results = results.filter(d => {
       const hay = (d.category + ' ' + d.question + ' ' + d.answer).toLowerCase();
@@ -228,29 +271,83 @@ function render() {
     : `전체 <b>${DATA.length}개</b> 항목`;
 
   const list = document.getElementById('resultsList');
+  const isSpecial = activeCategory === '__FAV__' || activeCategory === '__RECENT__';
   if (!results.length) {
-    if (q) {
+    clearTimeout(missLogTimer);
+    if (activeCategory === '__FAV__' && !q) {
+      list.innerHTML = `<div class="empty"><div class="big">⭐</div>즐겨찾기한 답변이 없습니다.<br>답변의 별표(☆)를 눌러 추가해보세요.</div>`;
+    } else if (activeCategory === '__RECENT__' && !q) {
+      list.innerHTML = `<div class="empty"><div class="big">🕐</div>최근 본 답변이 없습니다.</div>`;
+    } else if (q && !isSpecial) {
       scheduleMissLog(q, activeCategory);
       list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.<br><span class="miss-note">이 검색어는 FAQ 보완을 위해 자동 기록됩니다.</span></div>`;
     } else {
-      clearTimeout(missLogTimer);
       list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.</div>`;
     }
     return;
   }
   clearTimeout(missLogTimer);
   list.innerHTML = results.map(d => `
-    <div class="faq-item" data-id="${d._i}">
+    <div class="faq-item" data-id="${d._i}" data-q="${esc(d.question)}">
       <div class="faq-q">
         <span class="cat-tag">${esc(d.category)}</span>
         <span class="q-text">${highlight(d.question, tokens)}</span>
+        <button class="star-btn${favorites.has(d.question) ? ' active' : ''}" type="button" data-q="${esc(d.question)}" title="즐겨찾기">${favorites.has(d.question) ? '★' : '☆'}</button>
         <span class="chevron">▾</span>
       </div>
-      <div class="faq-a">${highlight(d.answer, tokens)}</div>
+      <div class="faq-a">
+        <div class="faq-a-tools"><button class="copy-btn" type="button" data-i="${d._i}">📋 답변 복사</button></div>
+        <div class="faq-a-text">${highlight(d.answer, tokens)}</div>
+      </div>
     </div>`).join('');
   list.querySelectorAll('.faq-q').forEach(el => el.addEventListener('click', () => {
-    el.closest('.faq-item').classList.toggle('open');
+    const item = el.closest('.faq-item');
+    const opening = !item.classList.contains('open');
+    item.classList.toggle('open');
+    if (opening) {
+      addRecent(item.dataset.q);
+      updateSpecialChipCounts();
+    }
   }));
+  list.querySelectorAll('.copy-btn').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const item = DATA.find(d => String(d._i) === btn.dataset.i);
+    if (!item) return;
+    copyText(item.answer, btn);
+  }));
+  list.querySelectorAll('.star-btn').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleFavorite(btn.dataset.q);
+    buildChips();
+    render();
+  }));
+}
+
+function copyText(text, btn) {
+  const done = () => {
+    btn.textContent = '✅ 복사됨';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 답변 복사'; btn.classList.remove('copied'); }, 1500);
+  };
+  let settled = false;
+  const settle = fn => { if (!settled) { settled = true; fn(); } };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => settle(done)).catch(() => settle(() => fallbackCopy(text, done)));
+    setTimeout(() => settle(() => fallbackCopy(text, done)), 800);
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
 }
 
 async function loadData(isRetry) {
