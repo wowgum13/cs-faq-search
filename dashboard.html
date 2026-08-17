@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>검색 로그 대시보드</title>
+<style>
+:root{--navy:#1a1a2e;--navy2:#27338a;--gold:#c9a24b;--ink:#1a1a2e;--gray:#6b7280;--gray2:#9ca3af;--line:#eef0f4;--red:#dc2626;--green:#16a34a;--amber:#d97706;}
+*{box-sizing:border-box}
+body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;color:var(--ink);background:#f6f7f9}
+.wrap{max-width:920px;margin:0 auto;padding:20px}
+.head{background:var(--navy);color:#fff;border-radius:14px;padding:16px 22px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.head h1{margin:0;font-size:18px}
+.head p{margin:5px 0 0;font-size:12px;color:#c7c9d9}
+.head .gold{color:var(--gold);font-weight:700}
+.hdr-stat{font-size:11.5px;color:#c7c9d9;text-align:right;white-space:nowrap}
+.stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.stat-card{flex:1;min-width:140px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.stat-card .n{font-size:26px;font-weight:800;color:var(--navy)}
+.stat-card .n.amber{color:var(--amber)}
+.stat-card .n.green{color:var(--green)}
+.stat-card .l{font-size:12px;color:var(--gray);margin-top:4px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:14px;color:var(--navy)}
+.card .sub{font-size:11.5px;color:var(--gray2);margin-bottom:14px}
+.cat-bars{display:flex;flex-direction:column;gap:10px}
+.cat-bar-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.cat-bar-label{width:90px;flex:none;color:var(--gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-bar-track{flex:1;background:#f1f2f6;border-radius:6px;height:16px;overflow:hidden}
+.cat-bar-fill{height:100%;background:var(--navy2);border-radius:6px}
+.cat-bar-n{width:34px;flex:none;text-align:right;font-weight:700;color:var(--navy)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:11px;color:var(--gray2);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.q-cell{font-weight:600;color:var(--ink)}
+.meta-cell{color:var(--gray2);font-size:11.5px;white-space:nowrap}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:#eef0fb;color:var(--navy2)}
+.empty{text-align:center;color:var(--gray2);padding:40px 20px;font-size:13px}
+.empty .big{font-size:26px;margin-bottom:8px}
+.loading{text-align:center;color:var(--gray);padding:50px 20px;font-size:13px}
+.err{text-align:center;color:var(--red);padding:30px 20px;font-size:13px;line-height:1.7}
+.err button{margin-top:10px;padding:8px 16px;border:1.5px solid var(--red);background:#fff;color:var(--red);border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+footer{text-align:center;padding:24px;color:var(--gray2);font-size:12px}
+footer a{color:var(--gray2)}
+.table-wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>📊 검색 로그 대시보드</h1>
+      <p><span class="gold">0건 검색어 현황</span> · 상담원 CS FAQ 검색에서 답을 못 찾은 질문 모음</p>
+    </div>
+    <div class="hdr-stat"><span id="hdrStat">불러오는 중...</span></div>
+  </div>
+
+  <div id="content">
+    <div class="loading">데이터를 불러오는 중입니다...</div>
+  </div>
+</div>
+<footer>검색 로그 대시보드 · <a href="index.html">← FAQ 검색으로 돌아가기</a></footer>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=323199648&single=true&output=csv';
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function formatDate(v) {
+  if (!v) return '';
+  return v;
+}
+
+function render(entries) {
+  const content = document.getElementById('content');
+  const total = entries.length;
+  const unresolved = entries.filter(e => !e.done);
+  const resolved = entries.filter(e => e.done);
+  const rate = total ? Math.round((resolved.length / total) * 100) : 0;
+
+  const catCounts = {};
+  unresolved.forEach(e => {
+    const c = e.category || '미분류';
+    catCounts[c] = (catCounts[c] || 0) + 1;
+  });
+  const cats = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a]);
+  const maxCat = cats.length ? catCounts[cats[0]] : 0;
+
+  const recent = [...unresolved].reverse().slice(0, 30);
+
+  let html = '';
+  html += `<div class="stat-row">
+    <div class="stat-card"><div class="n">${total}</div><div class="l">누적 0건 검색어</div></div>
+    <div class="stat-card"><div class="n amber">${unresolved.length}</div><div class="l">미해결 대기중</div></div>
+    <div class="stat-card"><div class="n green">${resolved.length}</div><div class="l">FAQ 반영 완료</div></div>
+    <div class="stat-card"><div class="n">${rate}%</div><div class="l">처리율</div></div>
+  </div>`;
+
+  html += `<div class="card"><h2>카테고리별 미해결 분포</h2><div class="sub">미해결 항목 중 카테고리가 지정된 것만 집계됩니다</div>`;
+  if (!cats.length) {
+    html += `<div class="empty"><div class="big">✅</div>미해결 항목이 없습니다.</div>`;
+  } else {
+    html += `<div class="cat-bars">` + cats.map(c => `
+      <div class="cat-bar-row">
+        <div class="cat-bar-label">${esc(c)}</div>
+        <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${maxCat ? (catCounts[c] / maxCat * 100) : 0}%"></div></div>
+        <div class="cat-bar-n">${catCounts[c]}</div>
+      </div>`).join('') + `</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="card"><h2>미해결 검색어 (최신순, 최대 30개)</h2><div class="sub">답변을 찾지 못한 검색어 목록입니다. 검색어 옆 카테고리가 있으면 정제 진행 중입니다</div>`;
+  if (!recent.length) {
+    html += `<div class="empty"><div class="big">🎉</div>대기 중인 미해결 검색어가 없습니다.</div>`;
+  } else {
+    html += `<div class="table-wrap"><table><thead><tr><th>검색어</th><th>카테고리</th><th>상담원</th><th>시간</th></tr></thead><tbody>`;
+    html += recent.map(e => `<tr>
+      <td class="q-cell">${esc(e.query)}</td>
+      <td>${e.category ? `<span class="badge">${esc(e.category)}</span>` : ''}</td>
+      <td class="meta-cell">${esc(e.agent)}</td>
+      <td class="meta-cell">${esc(formatDate(e.ts))}</td>
+    </tr>`).join('');
+    html += `</tbody></table></div>`;
+  }
+  html += `</div>`;
+
+  content.innerHTML = html;
+}
+
+async function loadData(isRetry) {
+  const stat = document.getElementById('hdrStat');
+  const content = document.getElementById('content');
+  stat.textContent = isRetry ? '다시 불러오는 중...' : '불러오는 중...';
+  content.innerHTML = `<div class="loading">데이터를 불러오는 중입니다...</div>`;
+  try {
+    const res = await fetch(CSV_URL + '&_ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length) throw new Error('빈 데이터');
+    const entries = rows.slice(1)
+      .filter(r => (r[1] || '').trim())
+      .map(r => ({
+        ts: (r[0] || '').trim(),
+        query: (r[1] || '').trim(),
+        agent: (r[2] || '').trim(),
+        category: (r[3] || '').trim(),
+        refined: (r[4] || '').trim(),
+        done: String(r[5] || '').trim().toUpperCase() === 'TRUE'
+      }));
+    const now = new Date();
+    const p = n => String(n).padStart(2, '0');
+    stat.textContent = `${p(now.getMonth() + 1)}/${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())} 동기화`;
+    render(entries);
+  } catch (e) {
+    stat.textContent = '동기화 실패';
+    content.innerHTML = `<div class="err">데이터를 불러오지 못했습니다.<br>${esc(e.message)}<br><button id="retryBtn">다시 시도</button></div>`;
+    document.getElementById('retryBtn').addEventListener('click', () => loadData(true));
+  }
+}
+
+loadData(false);
+</script>
+</body>
+</html>
