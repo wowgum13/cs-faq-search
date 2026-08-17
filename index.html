@@ -60,6 +60,9 @@ body{margin:0;font-family:'맑은 고딕','Malgun Gothic',system-ui,sans-serif;c
 .empty{text-align:center;color:var(--gray2);padding:50px 20px;font-size:13px}
 .empty .big{font-size:28px;margin-bottom:8px}
 .empty .miss-note{display:block;margin-top:10px;font-size:11px;color:var(--gray2)}
+.suggest-box{padding:30px 20px 10px}
+.suggest-box .empty{padding:0 0 22px}
+.suggest-label{font-size:12.5px;font-weight:700;color:var(--navy2);text-align:center;margin-bottom:10px}
 .loading{text-align:center;color:var(--gray);padding:50px 20px;font-size:13px}
 .err{text-align:center;color:var(--red);padding:30px 20px;font-size:13px;line-height:1.7}
 .err button{margin-top:10px;padding:8px 16px;border:1.5px solid var(--red);background:#fff;color:var(--red);border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -104,6 +107,7 @@ footer a{color:var(--gray2)}
 </div>
 <footer>상담원 CS FAQ 검색 · 브라우저 내 처리(외부 전송 없음) · <a href="#" id="refreshLink">데이터 새로고침</a></footer>
 
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTY7XNufaJRk7Yf-5QYkw13v3FBm7Boz73nRumO9_XKRW9edlq3t8ZguxQ9OkAzDL5A2MzFuXCgv81P/pub?gid=0&single=true&output=csv';
 const MISS_LOG_URL = 'https://script.google.com/macros/s/AKfycbwvsW8_KZQhYGAi1_y5_jJ8aZQRdCXiHNu9oXEZzMJd8XwvcUKlM4CLNvH1_Ymi035R5A/exec';
@@ -117,6 +121,7 @@ const RECENT_KEY = 'cs_faq_recent';
 const RECENT_MAX = 10;
 
 let DATA = [];
+let fuseIndex = null;
 let activeCategory = '전체';
 let agentName = localStorage.getItem(AGENT_KEY) || '';
 let favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
@@ -212,6 +217,29 @@ function parseCSV(text) {
   return rows.filter(r => r.length > 1 || (r[0] && r[0].trim() !== ''));
 }
 
+function buildFuseIndex() {
+  if (typeof Fuse === 'undefined') { fuseIndex = null; return; }
+  fuseIndex = new Fuse(DATA, {
+    keys: [
+      { name: 'question', weight: 0.7 },
+      { name: 'answer', weight: 0.2 },
+      { name: 'category', weight: 0.1 }
+    ],
+    threshold: 0.4,
+    ignoreLocation: true,
+    minMatchCharLength: 2
+  });
+}
+
+function getSuggestions(q, category) {
+  if (!fuseIndex || !q) return [];
+  let matches = fuseIndex.search(q).map(r => r.item);
+  if (category !== '전체' && category !== '__FAV__' && category !== '__RECENT__') {
+    matches = matches.filter(d => d.category === category);
+  }
+  return matches.slice(0, 5);
+}
+
 function highlight(text, tokens) {
   let out = esc(text);
   tokens.forEach(t => {
@@ -280,14 +308,28 @@ function render() {
       list.innerHTML = `<div class="empty"><div class="big">🕐</div>최근 본 답변이 없습니다.</div>`;
     } else if (q && !isSpecial) {
       scheduleMissLog(q, activeCategory);
-      list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.<br><span class="miss-note">이 검색어는 FAQ 보완을 위해 자동 기록됩니다.</span></div>`;
+      const suggestions = getSuggestions(q, activeCategory);
+      if (suggestions.length) {
+        list.innerHTML = `<div class="suggest-box">
+          <div class="empty"><div class="big">🔍</div>정확히 일치하는 결과가 없습니다.<br><span class="miss-note">이 검색어는 FAQ 보완을 위해 자동 기록됩니다.</span></div>
+          <div class="suggest-label">🤔 혹시 이런 질문을 찾으시나요?</div>
+        </div>` + renderItems(suggestions, []);
+        wireListEvents(list);
+      } else {
+        list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.<br><span class="miss-note">이 검색어는 FAQ 보완을 위해 자동 기록됩니다.</span></div>`;
+      }
     } else {
       list.innerHTML = `<div class="empty"><div class="big">🔍</div>검색 결과가 없습니다.<br>다른 키워드로 시도해보세요.</div>`;
     }
     return;
   }
   clearTimeout(missLogTimer);
-  list.innerHTML = results.map(d => `
+  list.innerHTML = renderItems(results, tokens);
+  wireListEvents(list);
+}
+
+function renderItems(items, tokens) {
+  return items.map(d => `
     <div class="faq-item" data-id="${d._i}" data-q="${esc(d.question)}">
       <div class="faq-q">
         <span class="cat-tag">${esc(d.category)}</span>
@@ -300,6 +342,9 @@ function render() {
         <div class="faq-a-text">${highlight(d.answer, tokens)}</div>
       </div>
     </div>`).join('');
+}
+
+function wireListEvents(list) {
   list.querySelectorAll('.faq-q').forEach(el => el.addEventListener('click', () => {
     const item = el.closest('.faq-item');
     const opening = !item.classList.contains('open');
@@ -371,6 +416,7 @@ async function loadData(isRetry) {
     DATA = body
       .filter(r => (r[qi] || '').trim())
       .map((r, i) => ({ category: (r[ci] || '').trim(), question: (r[qi] || '').trim(), answer: (r[ai] || '').trim(), _i: i }));
+    buildFuseIndex();
     const now = new Date();
     const p = n => String(n).padStart(2, '0');
     stat.textContent = `총 ${DATA.length}개 항목 · ${p(now.getMonth() + 1)}/${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())} 동기화`;
